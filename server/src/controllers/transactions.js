@@ -7,6 +7,11 @@ if (!global.mockTransactions) {
   global.mockTransactions = {};
 }
 
+// Initialize global mockUsersData object if it doesn't exist
+if (!global.mockUsersData) {
+  global.mockUsersData = {};
+}
+
 // @desc    Get all transactions
 // @route   GET /api/transactions
 // @access  Private
@@ -70,12 +75,17 @@ exports.getTransactions = async (req, res) => {
       // Fallback to mock transactions if MongoDB is unavailable
       console.error('Database error in getTransactions, using fallback:', dbError.message);
       
-      // Filter and paginate mock transactions
-      let mockTransactionsList = Object.values(global.mockTransactions)
+      // Ensure user data storage exists
+      if (!global.mockUsersData[req.user.id]) {
+        global.mockUsersData[req.user.id] = {
+          messages: {},
+          transactions: {}
+        };
+      }
+      
+      // Get user's transactions from user-specific storage
+      let mockTransactionsList = Object.values(global.mockUsersData[req.user.id].transactions || {})
         .filter(transaction => {
-          // Basic user filter
-          if (transaction.user !== req.user.id) return false;
-          
           // Type filter
           if (query.type && transaction.type !== query.type) return false;
           
@@ -131,7 +141,18 @@ exports.getTransaction = async (req, res) => {
       const transaction = await Transaction.findById(req.params.id);
 
       if (!transaction) {
-        // Check if this exists in mock transactions
+        // Check if this exists in user-specific transactions
+        if (global.mockUsersData?.[req.user.id]?.transactions?.[req.params.id]) {
+          const mockTransaction = global.mockUsersData[req.user.id].transactions[req.params.id];
+          
+          return res.status(200).json({
+            success: true,
+            data: mockTransaction,
+            source: 'fallback'
+          });
+        }
+        
+        // Fallback to check global transaction registry
         if (global.mockTransactions && global.mockTransactions[req.params.id]) {
           const mockTransaction = global.mockTransactions[req.params.id];
           
@@ -172,7 +193,18 @@ exports.getTransaction = async (req, res) => {
       // Fallback to mock transactions if MongoDB is unavailable
       console.error('Database error in getTransaction, using fallback:', dbError.message);
       
-      // Check if this transaction exists in mock storage
+      // First check user-specific storage
+      if (global.mockUsersData?.[req.user.id]?.transactions?.[req.params.id]) {
+        const mockTransaction = global.mockUsersData[req.user.id].transactions[req.params.id];
+        
+        return res.status(200).json({
+          success: true,
+          data: mockTransaction,
+          source: 'fallback'
+        });
+      }
+      
+      // Fallback to check global registry
       if (global.mockTransactions && global.mockTransactions[req.params.id]) {
         const mockTransaction = global.mockTransactions[req.params.id];
         
@@ -271,12 +303,23 @@ exports.createTransaction = async (req, res) => {
         updatedAt: new Date()
       };
       
-      // Save to mock transactions registry
+      // Ensure user data storage exists
+      if (!global.mockUsersData[req.user.id]) {
+        global.mockUsersData[req.user.id] = {
+          messages: {},
+          transactions: {}
+        };
+      }
+      
+      // Save to user-specific transaction registry
+      global.mockUsersData[req.user.id].transactions[mockTransactionId] = mockTransaction;
+      
+      // Also save to global registry for backward compatibility
       global.mockTransactions[mockTransactionId] = mockTransaction;
       
       // Save to file for persistence between server restarts
       const localStoragePersistence = require('../utils/localStoragePersistence');
-      localStoragePersistence.saveData(localStoragePersistence.FILES.transactions, global.mockTransactions);
+      localStoragePersistence.saveUserData(req.user.id, 'transactions', global.mockUsersData[req.user.id].transactions);
       
       // Update user's mock balance
       let updatedBalance = 0;
@@ -558,11 +601,16 @@ exports.getTransactionsSummary = async (req, res) => {
       // Fallback to mock transactions if MongoDB is unavailable
       console.error('Database error in getTransactionsSummary, using fallback:', dbError.message);
       
-      // Filter mock transactions
-      const mockTransactionsList = Object.values(global.mockTransactions).filter(transaction => {
-        // Basic user filter
-        if (transaction.user !== req.user.id) return false;
-        
+      // Ensure user data storage exists
+      if (!global.mockUsersData[req.user.id]) {
+        global.mockUsersData[req.user.id] = {
+          messages: {},
+          transactions: {}
+        };
+      }
+      
+      // Get user-specific transactions and filter by date
+      const mockTransactionsList = Object.values(global.mockUsersData[req.user.id].transactions || {}).filter(transaction => {
         // Date range filter
         if (Object.keys(dateFilter).length > 0) {
           const transactionDate = new Date(transaction.date);

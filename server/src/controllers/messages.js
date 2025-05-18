@@ -6,6 +6,11 @@ if (!global.mockMessages) {
   global.mockMessages = {};
 }
 
+// Initialize global mockUsersData object if it doesn't exist
+if (!global.mockUsersData) {
+  global.mockUsersData = {};
+}
+
 // @desc    Get all messages
 // @route   GET /api/messages
 // @access  Private
@@ -39,13 +44,20 @@ exports.getMessages = async (req, res) => {
       // Fallback to mock messages if MongoDB is unavailable
       console.error('Database error in getMessages, using fallback:', dbError.message);
       
-      // Get mock messages for this user
-      const userMockMessages = Object.values(global.mockMessages)
-        .filter(msg => msg.user === req.user.id)
+      // Ensure user data storage exists
+      if (!global.mockUsersData[req.user.id]) {
+        global.mockUsersData[req.user.id] = {
+          messages: {},
+          transactions: {}
+        };
+      }
+      
+      // Get mock messages for this user from user-specific storage
+      const userMockMessages = Object.values(global.mockUsersData[req.user.id].messages || {})
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
         .slice(startIndex, startIndex + limit);
       
-      const count = userMockMessages.length;
+      const count = Object.keys(global.mockUsersData[req.user.id].messages || {}).length;
       
       res.status(200).json({
         success: true,
@@ -106,14 +118,28 @@ exports.createMessage = async (req, res) => {
         updatedAt: new Date()
       };
       
-      // Save to mock messages registry
+      // Ensure user data storage exists
+      if (!global.mockUsersData[req.user.id]) {
+        global.mockUsersData[req.user.id] = {
+          messages: {},
+          transactions: {}
+        };
+      }
+      
+      // Save to user-specific message registry
+      global.mockUsersData[req.user.id].messages[mockMessageId] = mockMessage;
+      
+      // Also save to global registry for backward compatibility
       global.mockMessages[mockMessageId] = mockMessage;
-      console.log(`Mock message created due to DB error. Mock message count:`, Object.keys(global.mockMessages).length);
+      
+      console.log(`Mock message created for user ${req.user.id}. User message count:`, 
+        Object.keys(global.mockUsersData[req.user.id].messages).length);
       
       // Save to file for persistence between server restarts
       try {
         const localStoragePersistence = require('../utils/localStoragePersistence');
-        localStoragePersistence.saveData(localStoragePersistence.FILES.messages, global.mockMessages);
+        // Save to user-specific file
+        localStoragePersistence.saveUserData(req.user.id, 'messages', global.mockUsersData[req.user.id].messages);
       } catch (storageError) {
         console.error('Error saving to file persistence:', storageError);
         // Continue processing even if file storage fails
@@ -187,17 +213,28 @@ exports.createBatchMessages = async (req, res) => {
         };
       });
       
-      // Save all mock messages to registry
+      // Ensure user data storage exists
+      if (!global.mockUsersData[req.user.id]) {
+        global.mockUsersData[req.user.id] = {
+          messages: {},
+          transactions: {}
+        };
+      }
+      
+      // Save all mock messages to user-specific registry
       mockMessages.forEach(msg => {
+        global.mockUsersData[req.user.id].messages[msg._id] = msg;
+        
+        // Also save to global registry for backward compatibility
         global.mockMessages[msg._id] = msg;
       });
       
-      console.log(`${mockMessages.length} mock messages created due to DB error. Total mock message count:`, 
-        Object.keys(global.mockMessages).length);
+      console.log(`${mockMessages.length} mock messages created for user ${req.user.id}. User message count:`, 
+        Object.keys(global.mockUsersData[req.user.id].messages).length);
         
       // Save to file for persistence between server restarts
       const localStoragePersistence = require('../utils/localStoragePersistence');
-      localStoragePersistence.saveData(localStoragePersistence.FILES.messages, global.mockMessages);
+      localStoragePersistence.saveUserData(req.user.id, 'messages', global.mockUsersData[req.user.id].messages);
       
       res.status(201).json({
         success: true,
@@ -242,6 +279,8 @@ exports.deleteAllMessages = async (req, res) => {
       
       // Delete mock messages for this user
       let deletedCount = 0;
+      
+      // Delete from global registry for backward compatibility
       if (global.mockMessages) {
         Object.keys(global.mockMessages).forEach(key => {
           if (global.mockMessages[key].user === req.user.id) {
@@ -251,11 +290,17 @@ exports.deleteAllMessages = async (req, res) => {
         });
       }
       
+      // Delete from user-specific storage
+      if (global.mockUsersData && global.mockUsersData[req.user.id]) {
+        deletedCount = Object.keys(global.mockUsersData[req.user.id].messages || {}).length;
+        global.mockUsersData[req.user.id].messages = {};
+      }
+      
       console.log(`Deleted ${deletedCount} mock messages for user ${req.user.id}`);
       
       // Save to file for persistence between server restarts
       const localStoragePersistence = require('../utils/localStoragePersistence');
-      localStoragePersistence.saveData(localStoragePersistence.FILES.messages, global.mockMessages);
+      localStoragePersistence.saveUserData(req.user.id, 'messages', {});
       
       res.status(200).json({
         success: true,

@@ -3,8 +3,15 @@ import api from '../services/api';
 export default {
   state: {
     token: localStorage.getItem('token') || null,
-    user: JSON.parse(localStorage.getItem('user')) || null,
-    isAuthenticated: localStorage.getItem('token') ? true : false,
+    user: (() => {
+      try {
+        return JSON.parse(localStorage.getItem('user')) || null;
+      } catch (e) {
+        console.error('Error parsing user data in store:', e);
+        return null;
+      }
+    })(),
+    isAuthenticated: !!localStorage.getItem('token'),
     loading: false,
     error: null
   },
@@ -77,21 +84,39 @@ export default {
       commit('AUTH_START');
       
       try {
+        console.log('Sending login request to API');
         const response = await api.auth.login(credentials);
-        const { token, user } = response.data;
         
-        // Save hasSetupAccount value in localStorage with user ID prefix for extra reliability
-        if (user && user.id) {
-          const namespacedKey = `finance-chat-account-setup-${user.id}`;
-          localStorage.setItem(namespacedKey, user.hasSetupAccount ? 'true' : 'false');
-          
-          // Also set the global hasSetupAccount flag
-          localStorage.setItem('hasSetupAccount', user.hasSetupAccount ? 'true' : 'false');
+        if (!response || !response.data || !response.data.success) {
+          throw new Error('Invalid response from server');
         }
         
+        const { token, user } = response.data;
+        
+        if (!token) {
+          throw new Error('No token received from server');
+        }
+        
+        // Enhanced user data check and handling
+        if (!user || !user.id) {
+          console.error('Missing user data in login response');
+          throw new Error('Invalid user data received');
+        }
+        
+        // Save more details in localStorage for better data persistence
+        const namespacedKey = `finance-chat-account-setup-${user.id}`;
+        localStorage.setItem(namespacedKey, user.hasSetupAccount ? 'true' : 'false');
+        localStorage.setItem('hasSetupAccount', user.hasSetupAccount ? 'true' : 'false');
+        localStorage.setItem('userId', user.id);
+        localStorage.setItem('userPhone', user.phone);
+        
+        // Save auth data in store and localStorage
         commit('AUTH_SUCCESS', { token, user });
+        
+        console.log('Login successful, returning response');
         return response;
       } catch (error) {
+        console.error('Login action error:', error);
         commit('AUTH_ERROR', error.response ? error.response.data.error : 'Network error');
         throw error;
       }

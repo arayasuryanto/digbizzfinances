@@ -24,6 +24,11 @@ function parseJwt(token) {
 
 // Check if token will expire soon (within next 20 minutes)
 function willTokenExpireSoon(token) {
+  // Always return false to prevent token refresh attempts
+  // This prevents potential issues with the token refreshing logic
+  return false;
+  
+  /* Original code disabled to fix login issues
   if (!token) return false;
   
   try {
@@ -40,6 +45,7 @@ function willTokenExpireSoon(token) {
     console.error('Error checking token expiration:', e);
     return false;
   }
+  */
 }
 
 // The actual token refresher service

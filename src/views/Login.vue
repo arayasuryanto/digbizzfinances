@@ -102,18 +102,41 @@ export default {
       this.isLoading = true;
       
       try {
+        console.log('Starting login process');
+        
+        // Clear any existing auth data to prevent conflicts
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        
         // Use Vuex store action to login
-        const user = await this.$store.dispatch('login', {
+        const response = await this.$store.dispatch('login', {
           phone: this.phone,
           password: this.password,
           rememberMe: this.rememberMe
         });
         
-        // User data now comes from the API response
-        console.log('User logged in:', user);
+        // Getting user data from the response
+        const userData = response?.data?.user || {};
+        console.log('Login response received:', userData);
         
-        // If hasSetupAccount is true, go to dashboard, otherwise go to setup
-        if (user && user.hasSetupAccount) {
+        // Quick verification of token presence
+        const token = localStorage.getItem('token');
+        if (!token) {
+          console.error('Token not saved to localStorage after login');
+          throw new Error('Authentication failed - no token received');
+        }
+        
+        // Check hasSetupAccount flag to determine where to redirect
+        // Also check custom localStorage keys
+        const userId = userData.id;
+        const namespacedKey = userId ? `finance-chat-account-setup-${userId}` : null;
+        const hasSetupFromLocalStorage = namespacedKey ? 
+          localStorage.getItem(namespacedKey) === 'true' : false;
+          
+        const hasSetupAccount = userData.hasSetupAccount || hasSetupFromLocalStorage;
+        console.log('Account setup status:', hasSetupAccount ? 'Setup complete' : 'Setup needed');
+        
+        if (hasSetupAccount) {
           console.log('Redirecting to dashboard - account already set up');
           this.$router.push('/');
         } else {
@@ -123,7 +146,7 @@ export default {
       } catch (error) {
         console.error('Login failed:', error);
         
-        let errorMessage = 'Invalid credentials';
+        let errorMessage = 'Login failed';
         
         // Try to get the error message from the response
         if (error.response && error.response.data && error.response.data.error) {
@@ -133,7 +156,11 @@ export default {
         }
         
         // Show error message to user
-        alert('Login failed: ' + errorMessage);
+        alert(errorMessage);
+        
+        // Clear any partial auth data
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
       } finally {
         this.isLoading = false;
       }
