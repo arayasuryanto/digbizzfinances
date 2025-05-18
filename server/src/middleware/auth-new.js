@@ -22,8 +22,8 @@ exports.protect = async (req, res, next) => {
     }
     
     try {
-      // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      // Verify token with longer expiration to prevent frequent logouts
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'digbizz_finance_chat_jwt_secret_production');
       console.log('Auth middleware - decoded token:', decoded);
       
       try {

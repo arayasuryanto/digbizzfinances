@@ -103,11 +103,16 @@ export default {
     // Clear chat history
     const clearChat = async () => {
       if (confirm('Apakah Anda yakin ingin menghapus semua riwayat chat?')) {
+        // Get user ID for storage key
+        const user = JSON.parse(localStorage.getItem('user')) || {};
+        const userId = user.id;
+        const storageKey = userId ? `aiAssistantChat_${userId}` : 'aiAssistantChat';
+        
         // Clear messages in UI
         messages.value = [];
         
-        // Clear messages in localStorage
-        localStorage.setItem('aiAssistantChat', JSON.stringify([]));
+        // Clear messages in user-specific localStorage
+        localStorage.setItem(storageKey, JSON.stringify([]));
         
         // Clear messages on server
         try {
@@ -331,6 +336,15 @@ Apakah ada informasi spesifik lain yang ingin Anda ketahui tentang keuangan atau
       try {
         // Save user message to server
         try {
+          // Get user ID to ensure proper message association
+          const user = JSON.parse(localStorage.getItem('user')) || {};
+          const userId = user.id;
+          
+          // Add user ID to message for proper association
+          if (userId) {
+            userMessage.userId = userId;
+          }
+          
           await store.dispatch('createMessage', userMessage);
         } catch (saveError) {
           console.error('Error saving user message to server:', saveError);
@@ -355,13 +369,25 @@ Apakah ada informasi spesifik lain yang ingin Anda ketahui tentang keuangan atau
         
         // Save assistant message to server
         try {
+          // Get user ID to ensure proper message association
+          const user = JSON.parse(localStorage.getItem('user')) || {};
+          const userId = user.id;
+          
+          // Add user ID to message for proper association
+          if (userId) {
+            assistantMessage.userId = userId;
+          }
+          
           await store.dispatch('createMessage', assistantMessage);
         } catch (saveError) {
           console.error('Error saving assistant message to server:', saveError);
         }
         
-        // Also save to localStorage as backup
-        localStorage.setItem('aiAssistantChat', JSON.stringify(messages.value));
+        // Also save to user-specific localStorage as backup
+        const user = JSON.parse(localStorage.getItem('user')) || {};
+        const userId = user.id;
+        const storageKey = userId ? `aiAssistantChat_${userId}` : 'aiAssistantChat';
+        localStorage.setItem(storageKey, JSON.stringify(messages.value));
       } catch (error) {
         console.error('Error generating response:', error);
         
@@ -381,8 +407,11 @@ Apakah ada informasi spesifik lain yang ingin Anda ketahui tentang keuangan atau
           console.error('Error saving fallback message to server:', saveError);
         }
         
-        // Save to localStorage as backup
-        localStorage.setItem('aiAssistantChat', JSON.stringify(messages.value));
+        // Save to user-specific localStorage as backup
+        const user = JSON.parse(localStorage.getItem('user')) || {};
+        const userId = user.id;
+        const storageKey = userId ? `aiAssistantChat_${userId}` : 'aiAssistantChat';
+        localStorage.setItem(storageKey, JSON.stringify(messages.value));
       } finally {
         // Always set loading to false and scroll to bottom
         isLoading.value = false;
@@ -399,38 +428,54 @@ Apakah ada informasi spesifik lain yang ingin Anda ketahui tentang keuangan atau
     
     // Load saved chat history from server on component mount
     onMounted(async () => {
+      // Get current user ID for proper message association
+      const user = JSON.parse(localStorage.getItem('user')) || {};
+      const userId = user.id;
+      
+      // Use a user-specific key for localStorage
+      const storageKey = userId ? `aiAssistantChat_${userId}` : 'aiAssistantChat';
+
       try {
-        // First try to load from server
+        // First try to load from server (should be user-specific due to auth token)
         const response = await store.dispatch('fetchMessages');
         if (response && response.length > 0) {
           console.log('Loaded messages from server:', response.length);
+          messages.value = response;
         } else {
           // If no messages on server, try localStorage as fallback
-          const savedChat = localStorage.getItem('aiAssistantChat');
+          const savedChat = localStorage.getItem(storageKey);
           if (savedChat) {
             try {
               const parsedChat = JSON.parse(savedChat);
               if (Array.isArray(parsedChat) && parsedChat.length > 0) {
                 messages.value = parsedChat;
                 
-                // Save these messages to the server for next time
-                try {
-                  await store.dispatch('createBatchMessages', parsedChat);
-                  console.log('Saved localStorage messages to server');
-                } catch (err) {
-                  console.error('Failed to save localStorage messages to server:', err);
+                // Only try to save to server if we have a user ID
+                if (userId) {
+                  try {
+                    // Ensure each message has the current user ID
+                    const messagesWithUserId = parsedChat.map(msg => ({
+                      ...msg,
+                      userId: userId
+                    }));
+                    
+                    await store.dispatch('createBatchMessages', messagesWithUserId);
+                    console.log('Saved localStorage messages to server');
+                  } catch (err) {
+                    console.error('Failed to save localStorage messages to server:', err);
+                  }
                 }
               }
             } catch (e) {
               console.error('Error loading chat history from localStorage:', e);
-              localStorage.removeItem('aiAssistantChat');
+              localStorage.removeItem(storageKey);
             }
           }
         }
       } catch (error) {
         console.error('Error loading messages from server:', error);
         // Fall back to localStorage
-        const savedChat = localStorage.getItem('aiAssistantChat');
+        const savedChat = localStorage.getItem(storageKey);
         if (savedChat) {
           try {
             const parsedChat = JSON.parse(savedChat);
@@ -439,7 +484,7 @@ Apakah ada informasi spesifik lain yang ingin Anda ketahui tentang keuangan atau
             }
           } catch (e) {
             console.error('Error loading chat history from localStorage:', e);
-            localStorage.removeItem('aiAssistantChat');
+            localStorage.removeItem(storageKey);
           }
         }
       }
