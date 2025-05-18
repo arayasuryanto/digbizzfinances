@@ -71,28 +71,77 @@ class SessionKeepAlive {
       console.log('Token missing, restoring from backup');
       localStorage.setItem('token', this.tokenBackup);
     } else if (token) {
-      // If we have a token, update our backup
-      this.tokenBackup = token;
-      sessionStorage.setItem('tokenBackup', token);
+      // If we have a token, update our backup only if different
+      if (this.tokenBackup !== token) {
+        this.tokenBackup = token;
+        sessionStorage.setItem('tokenBackup', token);
+      }
     }
     
     if (!user && this.userBackup) {
       console.log('User data missing, restoring from backup');
       localStorage.setItem('user', this.userBackup);
     } else if (user) {
-      // If we have user data, update our backup
-      this.userBackup = user;
-      sessionStorage.setItem('userBackup', user);
+      // If we have user data, update our backup only if different
+      if (this.userBackup !== user) {
+        this.userBackup = user;
+        sessionStorage.setItem('userBackup', user);
+      }
+    }
+    
+    // Validate the current or restored token
+    if (token) {
+      try {
+        // Simple check: Does it have 3 parts separated by dots?
+        const parts = token.split('.');
+        if (parts.length !== 3) {
+          console.warn('Invalid token format detected, clearing it');
+          localStorage.removeItem('token');
+          
+          // If we have a backup with the correct format, restore it
+          if (this.tokenBackup && this.tokenBackup.split('.').length === 3) {
+            localStorage.setItem('token', this.tokenBackup);
+          }
+        }
+      } catch (e) {
+        console.error('Error validating token:', e);
+      }
+    }
+    
+    // If we have a valid user object, ensure it's consistent
+    if (user) {
+      try {
+        // Try to parse the user
+        const userObj = JSON.parse(user);
+        if (!userObj || !userObj.id) {
+          console.warn('Invalid user data detected');
+          
+          // If we have valid backup user data, restore it
+          if (this.userBackup) {
+            try {
+              const backupUser = JSON.parse(this.userBackup);
+              if (backupUser && backupUser.id) {
+                localStorage.setItem('user', this.userBackup);
+                console.log('Restored valid user data from backup');
+              }
+            } catch (e) {
+              console.error('Error parsing backup user data:', e);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error parsing user data:', e);
+      }
     }
     
     // Check for last-resort backups in sessionStorage
-    if (!token && !this.tokenBackup && sessionStorage.getItem('tokenBackup')) {
+    if (!localStorage.getItem('token') && sessionStorage.getItem('tokenBackup')) {
       console.log('Token missing, restoring from session storage');
       localStorage.setItem('token', sessionStorage.getItem('tokenBackup'));
       this.tokenBackup = sessionStorage.getItem('tokenBackup');
     }
     
-    if (!user && !this.userBackup && sessionStorage.getItem('userBackup')) {
+    if (!localStorage.getItem('user') && sessionStorage.getItem('userBackup')) {
       console.log('User data missing, restoring from session storage');
       localStorage.setItem('user', sessionStorage.getItem('userBackup'));
       this.userBackup = sessionStorage.getItem('userBackup');

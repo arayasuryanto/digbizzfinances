@@ -183,5 +183,40 @@ export async function syncLocalMessagesToServer() {
  * Check if user is authenticated
  */
 export function isAuthenticated() {
-  return localStorage.getItem('token') ? true : false;
+  const token = localStorage.getItem('token');
+  const user = localStorage.getItem('user');
+  
+  // Basic validation of token format
+  if (token) {
+    try {
+      // Verify token has correct format (3 parts separated by dots)
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        console.warn('Invalid token format detected in isAuthenticated');
+        return false;
+      }
+      
+      // Also verify we have user data
+      if (user) {
+        try {
+          const userObj = JSON.parse(user);
+          if (userObj && userObj.id) {
+            // We have both a valid token and user data
+            return true;
+          }
+        } catch (e) {
+          console.error('Error parsing user data in isAuthenticated:', e);
+        }
+      }
+      
+      // If we have a valid token format but no valid user data,
+      // still return true to prevent unnecessary logouts
+      return true;
+    } catch (e) {
+      console.error('Error validating token in isAuthenticated:', e);
+    }
+  }
+  
+  // If we don't have a token or it's invalid
+  return false;
 }

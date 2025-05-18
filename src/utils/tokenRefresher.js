@@ -95,30 +95,16 @@ class TokenRefresher {
 
   // Create a token with refreshed expiration time
   createRefreshedToken(userId) {
-    // This is a simplified version - in a real app, you'd use the server's JWT secret
-    // For this demo, we're creating a token that will be accepted by our server
-    const header = {
-      alg: 'HS256',
-      typ: 'JWT'
-    };
+    // DO NOT create a new token - this approach isn't reliable
+    // Instead, we'll just return the existing token
+    const existingToken = localStorage.getItem('token');
+    if (existingToken) {
+      return existingToken;
+    }
     
-    // Set expiration to 90 days from now
-    const expirationDate = Date.now() + 90 * 24 * 60 * 60 * 1000;
-    const payload = {
-      id: userId,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(expirationDate / 1000)
-    };
-    
-    // Encode token parts
-    const encodedHeader = btoa(JSON.stringify(header));
-    const encodedPayload = btoa(JSON.stringify(payload));
-    
-    // For the demo, we're using a simplified signature
-    // In a real app, this would be a proper cryptographic signature
-    const signature = btoa(`${userId}_${expirationDate}_digbizz_finance_chat_jwt_secret_production`);
-    
-    return `${encodedHeader}.${encodedPayload}.${signature}`;
+    // If no existing token is found (which shouldn't happen),
+    // return a dummy token that will force a proper login
+    return '';
   }
 
   // Stop the token refresher service

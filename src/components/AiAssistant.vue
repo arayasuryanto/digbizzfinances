@@ -493,6 +493,12 @@ Apakah ada informasi spesifik lain yang ingin Anda ketahui tentang keuangan atau
     
     // Load saved chat history from server on component mount
     onMounted(async () => {
+      // Verify authentication
+      const isLoginValid = verifyLogin();
+      if (!isLoginValid) {
+        console.warn('Login verification failed in AiAssistant');
+      }
+      
       // Get current user ID for proper message association
       const user = JSON.parse(localStorage.getItem('user')) || {};
       const userId = user.id;
@@ -577,6 +583,37 @@ Apakah ada informasi spesifik lain yang ingin Anda ketahui tentang keuangan atau
           window.location.reload();
         }, 500);
         
+        return false;
+      }
+    };
+    
+    // Function to verify login is valid
+    const verifyLogin = () => {
+      const token = localStorage.getItem('token');
+      const user = localStorage.getItem('user');
+      
+      // Basic token format check
+      if (!token || token.split('.').length !== 3) {
+        console.warn('Invalid token format detected');
+        return false;
+      }
+      
+      // Check user data
+      if (!user) {
+        console.warn('No user data found');
+        return false;
+      }
+      
+      try {
+        const userObj = JSON.parse(user);
+        if (!userObj || !userObj.id || !userObj.name) {
+          console.warn('Invalid user data format');
+          return false;
+        }
+        
+        return true;
+      } catch (e) {
+        console.error('Error parsing user data during verification:', e);
         return false;
       }
     };
