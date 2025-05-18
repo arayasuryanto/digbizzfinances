@@ -345,9 +345,32 @@ Apakah ada informasi spesifik lain yang ingin Anda ketahui tentang keuangan atau
             userMessage.userId = userId;
           }
           
-          await store.dispatch('createMessage', userMessage);
+          // Use try-catch with retries
+          let retries = 3;
+          let success = false;
+          
+          while (retries > 0 && !success) {
+            try {
+              await store.dispatch('createMessage', userMessage);
+              success = true;
+            } catch (err) {
+              retries--;
+              // Only log after final retry
+              if (retries === 0) {
+                console.error('Error saving user message to server (all retries failed):', err);
+              } else {
+                console.warn(`Error saving message, retrying... (${retries} left)`);
+                // Wait a bit before retrying
+                await new Promise(r => setTimeout(r, 500));
+              }
+            }
+          }
+          
+          // Save to localStorage regardless of server success
+          const storageKey = userId ? `aiAssistantChat_${userId}` : 'aiAssistantChat';
+          localStorage.setItem(storageKey, JSON.stringify(messages.value));
         } catch (saveError) {
-          console.error('Error saving user message to server:', saveError);
+          console.error('Error saving user message:', saveError);
         }
         
         // Simulate thinking delay (500-1500ms)
@@ -378,9 +401,30 @@ Apakah ada informasi spesifik lain yang ingin Anda ketahui tentang keuangan atau
             assistantMessage.userId = userId;
           }
           
-          await store.dispatch('createMessage', assistantMessage);
+          // Use try-catch with retries
+          let retries = 3;
+          let success = false;
+          
+          while (retries > 0 && !success) {
+            try {
+              await store.dispatch('createMessage', assistantMessage);
+              success = true;
+            } catch (err) {
+              retries--;
+              // Only log after final retry
+              if (retries === 0) {
+                console.error('Error saving assistant message to server (all retries failed):', err);
+              } else {
+                console.warn(`Error saving message, retrying... (${retries} left)`);
+                // Wait a bit before retrying
+                await new Promise(r => setTimeout(r, 500));
+              }
+            }
+          }
+          
+          // Even if server save fails, continue with the conversation
         } catch (saveError) {
-          console.error('Error saving assistant message to server:', saveError);
+          console.error('Error saving assistant message:', saveError);
         }
         
         // Also save to user-specific localStorage as backup

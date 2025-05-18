@@ -43,20 +43,47 @@ api.interceptors.response.use(
 
     // Handle 401 Unauthorized errors (token expired or invalid)
     if (error.response && error.response.status === 401) {
-      // Clear localStorage and redirect to login page if not already there
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('hasSetupAccount');
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+      console.log('401 Unauthorized error detected, checking error type');
+      
+      // Only log out for specific authentication errors, not all 401s
+      const errorMsg = error.response.data && error.response.data.error 
+        ? error.response.data.error.toLowerCase() 
+        : '';
+        
+      // Only logout for serious auth errors
+      if (errorMsg.includes('invalid token') || 
+          errorMsg.includes('not authorized') ||
+          errorMsg.includes('token expired')) {
+            
+        console.log('Critical auth error, logging out user');
+        
+        // Clear localStorage and redirect to login page if not already there
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('hasSetupAccount');
+        
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      } else {
+        // For other 401 errors, just log them without logging out
+        console.error('Non-critical 401 error:', errorMsg);
       }
+    }
+    
+    // Special handling for network errors - don't log out
+    if (!error.response && error.request) {
+      console.error('Network Error - No response received, but not logging out');
+      // Return a customized error to prevent component crashes
+      return Promise.reject({
+        isNetworkError: true,
+        message: 'Network connection issue, please try again later'
+      });
     }
     
     // Log all API errors for debugging
     if (error.response) {
       console.error('API Error:', error.response.status, error.response.data);
-    } else if (error.request) {
-      console.error('Network Error - No response received:', error.request);
     } else {
       console.error('Error setting up request:', error.message);
     }

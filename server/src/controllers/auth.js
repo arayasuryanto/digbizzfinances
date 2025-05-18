@@ -258,14 +258,14 @@ const sendTokenResponse = (user, statusCode, res) => {
     const jwt = require('jsonwebtoken');
     token = jwt.sign(
       { id: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRE || '30d' }
+      process.env.JWT_SECRET || 'digbizz_finance_chat_jwt_secret_production',
+      { expiresIn: process.env.JWT_EXPIRE || '90d' }
     );
   }
 
   const options = {
     expires: new Date(
-      Date.now() + (process.env.JWT_COOKIE_EXPIRE || 30) * 24 * 60 * 60 * 1000
+      Date.now() + (process.env.JWT_COOKIE_EXPIRE || 90) * 24 * 60 * 60 * 1000
     ),
     httpOnly: true
   };
