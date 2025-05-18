@@ -40,40 +40,48 @@ api.interceptors.response.use(
   (error) => {
     // Track API failure
     lastApiCallFailed = true;
-
-    // Handle 401 Unauthorized errors (token expired or invalid)
-    if (error.response && error.response.status === 401) {
-      console.log('401 Unauthorized error detected, checking error type');
+    
+    // IMPORTANT: Check if we're currently in the chat/conversation page
+    // If so, NEVER logout the user regardless of error
+    const isInChatPage = window.location.pathname.includes('/conversation');
+    
+    // If we're in the chat page, just log the error but don't logout
+    if (isInChatPage) {
+      console.log('Error occurred in chat page, preventing logout');
       
-      // Only log out for specific authentication errors, not all 401s
-      const errorMsg = error.response.data && error.response.data.error 
-        ? error.response.data.error.toLowerCase() 
-        : '';
-        
-      // Only logout for serious auth errors
-      if (errorMsg.includes('invalid token') || 
-          errorMsg.includes('not authorized') ||
-          errorMsg.includes('token expired')) {
-            
-        console.log('Critical auth error, logging out user');
-        
-        // Clear localStorage and redirect to login page if not already there
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        localStorage.removeItem('hasSetupAccount');
-        
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
-        }
-      } else {
-        // For other 401 errors, just log them without logging out
-        console.error('Non-critical 401 error:', errorMsg);
+      // Just return a rejection without logging out
+      return Promise.reject({
+        isHandled: true,
+        originalError: error,
+        message: 'Error occurred but logout prevented'
+      });
+    }
+    
+    // For non-chat pages, handle auth errors normally
+    if (error.response && error.response.status === 401 && !isInChatPage) {
+      console.log('401 Unauthorized error detected');
+      
+      // DISABLE AUTO-LOGOUT COMPLETELY FOR NOW
+      console.log('Auto-logout disabled for stability');
+      
+      // Log the error but don't redirect
+      console.error('Auth error:', error.response.data);
+      
+      /* DISABLED LOGOUT CODE
+      // Clear localStorage and redirect to login page if not already there
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('hasSetupAccount');
+      
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
       }
+      */
     }
     
     // Special handling for network errors - don't log out
     if (!error.response && error.request) {
-      console.error('Network Error - No response received, but not logging out');
+      console.error('Network Error - No response received');
       // Return a customized error to prevent component crashes
       return Promise.reject({
         isNetworkError: true,

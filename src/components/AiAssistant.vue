@@ -68,7 +68,7 @@
 </template>
 
 <script>
-import { ref, onMounted, nextTick, watch, computed } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { useStore } from 'vuex';
@@ -308,6 +308,10 @@ Apakah ada informasi spesifik lain yang ingin Anda ketahui tentang keuangan atau
     
     // Send message function
     const sendMessage = async () => {
+      // Create a local backup of the token in case it gets cleared
+      const tokenBackup = localStorage.getItem('token');
+      const userBackup = localStorage.getItem('user');
+      
       if (!inputText.value.trim() || isLoading.value) return;
       
       // Create financial data object
@@ -332,6 +336,12 @@ Apakah ada informasi spesifik lain yang ingin Anda ketahui tentang keuangan atau
       
       // Scroll to bottom after sending
       nextTick(scrollToBottom);
+      
+      // Save to local storage immediately as a safety measure
+      const user = JSON.parse(localStorage.getItem('user')) || {};
+      const userId = user.id;
+      const storageKey = userId ? `aiAssistantChat_${userId}` : 'aiAssistantChat';
+      localStorage.setItem(storageKey, JSON.stringify(messages.value));
       
       try {
         // Save user message to server
@@ -460,6 +470,17 @@ Apakah ada informasi spesifik lain yang ingin Anda ketahui tentang keuangan atau
         // Always set loading to false and scroll to bottom
         isLoading.value = false;
         nextTick(scrollToBottom);
+        
+        // Restore token and user data if they were cleared
+        if (!localStorage.getItem('token') && tokenBackup) {
+          console.log('Restoring cleared token');
+          localStorage.setItem('token', tokenBackup);
+        }
+        
+        if (!localStorage.getItem('user') && userBackup) {
+          console.log('Restoring cleared user data');
+          localStorage.setItem('user', userBackup);
+        }
       }
     };
     
@@ -537,6 +558,37 @@ Apakah ada informasi spesifik lain yang ingin Anda ketahui tentang keuangan atau
     // Auto-scroll when new messages are added
     watch(() => messages.value.length, () => {
       nextTick(scrollToBottom);
+    });
+    
+    // Special error handler for critical errors - prevent logout by refreshing the page
+    const errorHandler = (event) => {
+      // Listen for auth related errors
+      if (event && event.reason && 
+          typeof event.reason.message === 'string' && 
+          (event.reason.message.includes('401') || 
+           event.reason.message.includes('auth') || 
+           event.reason.message.includes('token'))) {
+        
+        console.log('Auth error detected, preventing logout by refreshing page');
+        event.preventDefault();
+        
+        // Instead of letting the app logout, refresh the page to maintain session
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
+        
+        return false;
+      }
+    };
+    
+    // Add global unhandledrejection listener
+    onMounted(() => {
+      window.addEventListener('unhandledrejection', errorHandler);
+    });
+    
+    // Remove listener when component is unmounted
+    onUnmounted(() => {
+      window.removeEventListener('unhandledrejection', errorHandler);
     });
     
     return {
