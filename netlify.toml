@@ -1,0 +1,36 @@
+# Global settings
+[build]
+  # Directory with files to publish
+  publish = "dist"
+
+  # Command to build the frontend
+  command = "chmod +x ./build.sh && ./build.sh"
+
+# The production context
+[context.production]
+  environment = { NODE_VERSION = "18", VUE_APP_API_URL = "/.netlify/functions/api" }
+
+# The development context
+[context.branch-deploy]
+  environment = { NODE_VERSION = "18", VUE_APP_API_URL = "/.netlify/functions/api" }
+
+# Redirects for SPA
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Deploy all functions in the /netlify/functions folder
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Headers for security
+[[headers]]
+  for = "/*"
+    [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Content-Security-Policy = "default-src 'self'; connect-src 'self' https: wss:; img-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; form-action 'self'"
